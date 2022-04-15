@@ -6,7 +6,7 @@
 // TODO
 // - fee earnings are not handled here ... do it via eg. earnings: Balances
 
-#![allow(non_snake_case)]
+//#![allow(non_snake_case)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use ink_lang as ink;
@@ -29,12 +29,12 @@ mod amm {
     #[ink(storage)]
     #[derive(SpreadAllocate)]
     pub struct Amm {
-        totalShares: Balance,     // Stores the total amount of share issued for the pool
-        totalToken1: Balance,     // Stores the amount of Token1 locked in the pool
-        totalToken2: Balance,     // Stores the amount of Token2 locked in the pool
-        shares: Balances,         // Stores the share holding of each provider
-        token1Balances: Balances, // Stores the token1 balance of each user
-        token2Balances: Balances, // Stores the token2 balance of each user
+        total_shares: Balance, // Stores the total amount of share issued for the pool
+        token1_total: Balance, // Stores the amount of Token1 locked in the pool
+        token2_total: Balance, // Stores the amount of Token2 locked in the pool
+        shares: Balances,      // Stores the share holding of each provider
+        token1_balances: Balances, // Stores the token1 balance of each user
+        token2_balances: Balances, // Stores the token2 balance of each user
         fees: Balance,
     }
 
@@ -60,7 +60,7 @@ mod amm {
     }
 
     impl Amm {
-        fn validAmountCheck(&self, balances: &Balances, qty: Balance) -> Result<(), Error> {
+        fn valid_amount_check(&self, balances: &Balances, qty: Balance) -> Result<(), Error> {
             let caller = self.env().caller();
             let my_balance = balances.get(&caller).unwrap_or(0);
 
@@ -71,12 +71,12 @@ mod amm {
             }
         }
 
-        fn getK(&self) -> Balance {
-            self.totalToken1 * self.totalToken2
+        fn get_k(&self) -> Balance {
+            self.token1_total * self.token2_total
         }
 
-        fn activePool(&self) -> Result<(), Error> {
-            match self.getK() {
+        fn active_pool(&self) -> Result<(), Error> {
+            match self.get_k() {
                 0 => Err(Error::ZeroLiquidity),
                 _ => Ok(()),
             }
@@ -93,8 +93,8 @@ mod amm {
             ink_lang::utils::initialize_contract(|contract: &mut Self| {
                 let caller = Self::env().caller();
                 contract.shares.insert(&caller, &0);
-                contract.token1Balances.insert(&caller, &0);
-                contract.token2Balances.insert(&caller, &0);
+                contract.token1_balances.insert(&caller, &0);
+                contract.token2_balances.insert(&caller, &0);
                 contract.fees = fees;
             })
         }
@@ -108,31 +108,31 @@ mod amm {
         #[ink(message)]
         pub fn faucet(&mut self, token1_amount: Balance, token2_amount: Balance) {
             let caller = self.env().caller();
-            let token1_balance = self.token1Balances.get(&caller).unwrap_or(0);
-            let token2_balance = self.token2Balances.get(&caller).unwrap_or(0);
+            let token1_balance = self.token1_balances.get(&caller).unwrap_or(0);
+            let token2_balance = self.token2_balances.get(&caller).unwrap_or(0);
 
-            self.token1Balances
+            self.token1_balances
                 .insert(caller, &(token1_balance + token1_amount));
-            self.token2Balances
+            self.token2_balances
                 .insert(caller, &(token2_balance + token2_amount));
         }
 
         #[ink(message)]
-        pub fn getMyHoldings(&self) -> (Balance, Balance, Balance) {
+        pub fn get_my_holdings(&self) -> (Balance, Balance, Balance) {
             let caller = self.env().caller();
-            let token1_balance = self.token1Balances.get(&caller).unwrap_or(0);
-            let token2_balance = self.token2Balances.get(&caller).unwrap_or(0);
+            let token1_balance = self.token1_balances.get(&caller).unwrap_or(0);
+            let token2_balance = self.token2_balances.get(&caller).unwrap_or(0);
             let shares = self.shares.get(&caller).unwrap_or(0);
 
             (token1_balance, token2_balance, shares)
         }
 
         #[ink(message)]
-        pub fn getPoolDetails(&self) -> (Balance, Balance, Balance, Balance) {
+        pub fn get_pool_details(&self) -> (Balance, Balance, Balance, Balance) {
             (
-                self.totalToken1,
-                self.totalToken2,
-                self.totalShares,
+                self.token1_total,
+                self.token2_total,
+                self.total_shares,
                 self.fees,
             )
         }
@@ -143,14 +143,14 @@ mod amm {
             token1_amount: Balance,
             token2_amount: Balance,
         ) -> Result<Balance, Error> {
-            self.validAmountCheck(&self.token1Balances, token1_amount)?;
-            self.validAmountCheck(&self.token2Balances, token2_amount)?;
+            self.valid_amount_check(&self.token1_balances, token1_amount)?;
+            self.valid_amount_check(&self.token2_balances, token2_amount)?;
 
-            let share = if self.totalShares == 0 {
+            let share = if self.total_shares == 0 {
                 100 * super::PRECISION
             } else {
-                let share1 = self.totalShares * token1_amount / self.totalToken1;
-                let share2 = self.totalShares * token2_amount / self.totalToken2;
+                let share1 = self.total_shares * token1_amount / self.token1_total;
+                let share2 = self.total_shares * token2_amount / self.token2_total;
 
                 if share1 != share2 {
                     return Err(Error::NonEquivalentValue);
@@ -163,16 +163,16 @@ mod amm {
             }
 
             let caller = self.env().caller();
-            let token1_balance = self.token1Balances.get(&caller).unwrap();
-            let token2_balance = self.token2Balances.get(&caller).unwrap();
-            self.token1Balances
+            let token1_balance = self.token1_balances.get(&caller).unwrap();
+            let token2_balance = self.token2_balances.get(&caller).unwrap();
+            self.token1_balances
                 .insert(caller, &(token1_balance - token1_amount));
-            self.token2Balances
+            self.token2_balances
                 .insert(caller, &(token2_balance - token2_amount));
 
-            self.totalToken1 += token1_amount;
-            self.totalToken2 += token2_amount;
-            self.totalShares += share;
+            self.token1_total += token1_amount;
+            self.token2_total += token2_amount;
+            self.total_shares += share;
 
             let caller_share = self.shares.get(&caller).unwrap_or(0);
 
@@ -182,80 +182,123 @@ mod amm {
 
         #[ink(message)]
         pub fn get_withdraw_estimate(&self, share: Balance) -> Result<(Balance, Balance), Error> {
-            self.activePool()?;
+            self.active_pool()?;
 
-            if share > self.totalShares {
+            if share > self.total_shares {
                 return Err(Error::InvalidShare);
             }
 
-            let amountToken1 = share * self.totalToken1 / self.totalShares;
-            let amountToken2 = share * self.totalToken2 / self.totalShares;
-            Ok((amountToken1, amountToken2))
+            let token1_amount = share * self.token1_total / self.total_shares;
+            let token2_amount = share * self.token2_total / self.total_shares;
+            Ok((token1_amount, token2_amount))
         }
 
         #[ink(message)]
         pub fn withdraw(&mut self, share: Balance) -> Result<(Balance, Balance), Error> {
             let caller = self.env().caller();
-            self.validAmountCheck(&self.shares, share)?;
+            self.valid_amount_check(&self.shares, share)?;
 
             let caller_share = self.shares.get(&caller).unwrap();
-            let caller_token1_balance = self.token1Balances.get(&caller).unwrap();
-            let caller_token2_balance = self.token2Balances.get(&caller).unwrap();
+            let caller_token1_balance = self.token1_balances.get(&caller).unwrap();
+            let caller_token2_balance = self.token2_balances.get(&caller).unwrap();
 
             let (token1_amount, token2_amount) = self.get_withdraw_estimate(share)?;
             self.shares.insert(caller, &(caller_share - share));
-            self.totalShares -= share;
-            self.totalToken1 -= token1_amount;
-            self.totalToken2 -= token2_amount;
+            self.total_shares -= share;
+            self.token1_total -= token1_amount;
+            self.token2_total -= token2_amount;
 
-            self.token1Balances
+            self.token1_balances
                 .insert(caller, &(caller_token1_balance + token1_amount));
-            self.token2Balances
+            self.token2_balances
                 .insert(caller, &(caller_token2_balance + token2_amount));
             Ok((token1_amount, token2_amount))
         }
 
         #[ink(message)]
-        pub fn swap_token1_to_token2(&mut self, token1_amount: Balance, token2_min: Balance) -> Result<Balance, Error> {
-            self.activePool()?;
-            self.validAmountCheck(&self.token1Balances, token1_amount)?;
+        pub fn swap_token1_to_token2(
+            &mut self,
+            token1_amount: Balance,
+            token2_min: Balance,
+        ) -> Result<Balance, Error> {
+            self.active_pool()?;
+            self.valid_amount_check(&self.token1_balances, token1_amount)?;
+            if token1_amount >= self.token1_total {
+                return Err(Error::InsufficientLiquidity);
+            }
             let caller = self.env().caller();
 
             let fee = self.fees * token1_amount / 1000;
             let token1_w_fee = token1_amount - fee;
 
-            let total_token1_after = self.totalToken1 + token1_w_fee;
-            let total_token2_after = self.getK() / total_token1_after;
+            let total_token1_after = self.token1_total + token1_w_fee;
+            let total_token2_after = self.get_k() / total_token1_after;
 
             // current total - calculated total after swap by K formula (x * y = K) ^^^
             // it means we won't get token2 amount related to rate BEFORE exchange
             // but related to rate AFTER exchange .... SLIPPAGE
-            let token2_withdraw = self.totalToken2 - total_token2_after;
+            let token2_withdraw = self.token2_total - total_token2_after;
 
             // check slippage
             if token2_withdraw < token2_min {
                 return Err(Error::SlippageExceeded);
             }
 
-            self.totalToken1 = total_token1_after;
-            self.totalToken2 = total_token2_after;
+            self.token1_total = total_token1_after;
+            self.token2_total = total_token2_after;
 
-            let caller_token2_balance = self.token2Balances.get(caller).unwrap_or(0);
-            self.token2Balances.insert(caller, &(caller_token2_balance + token2_withdraw));
+            let caller_token2_balance = self.token2_balances.get(caller).unwrap_or(0);
+            self.token2_balances
+                .insert(caller, &(caller_token2_balance + token2_withdraw));
 
-            let caller_token1_balance = self.token1Balances.get(caller).unwrap();
-            self.token1Balances.insert(caller, &(caller_token1_balance - token1_amount));
+            let caller_token1_balance = self.token1_balances.get(caller).unwrap();
+            self.token1_balances
+                .insert(caller, &(caller_token1_balance - token1_amount));
 
             Ok(token2_withdraw)
         }
 
         #[ink(message)]
-        pub fn swap_token1_to_token2(&mut self, token1_amount: Balance, token2_min: Balance) -> Result<Balance, Error> {
-            self.activePool()?;
-            self.validAmountCheck(&self.token1Balances, token1_amount)?;
+        pub fn swap_token2_to_token1(
+            &mut self,
+            token2_amount: Balance,
+            token1_min: Balance,
+        ) -> Result<Balance, Error> {
+            self.active_pool()?;
+            self.valid_amount_check(&self.token2_balances, token2_amount)?;
+            if token2_amount >= self.token2_total {
+                return Err(Error::InsufficientLiquidity);
+            }
             let caller = self.env().caller();
 
-            let fee = self.fees * token1_amount / 1000;
+            let fee = self.fees * token2_amount / 1000;
+            let token2_w_fee = token2_amount - fee;
+
+            let total_token2_after = self.token2_total + token2_w_fee;
+            let total_token1_after = self.get_k() / total_token2_after;
+            println!("k: {:?}", self.get_k());
+            println!("total token 2 after: {:?}", total_token2_after);
+            println!("total token 1 after: {:?}", total_token1_after);
+
+            let token1_withdraw = self.token1_total - total_token1_after;
+
+            // check slippage
+            if token1_withdraw < token1_min {
+                return Err(Error::SlippageExceeded);
+            }
+
+            self.token1_total = total_token1_after;
+            self.token2_total = total_token2_after;
+
+            let caller_token1_balance = self.token1_balances.get(caller).unwrap_or(0);
+            self.token1_balances
+                .insert(caller, &(caller_token1_balance + token1_withdraw));
+
+            let caller_token2_balance = self.token2_balances.get(caller).unwrap();
+            self.token2_balances
+                .insert(caller, &(caller_token2_balance - token2_amount));
+
+            Ok(token1_withdraw)
         }
     }
 
@@ -273,22 +316,22 @@ mod amm {
         #[ink::test]
         fn new_works() {
             let contract = Amm::new(0);
-            assert_eq!(contract.getMyHoldings(), (0, 0, 0));
-            assert_eq!(contract.getPoolDetails(), (0, 0, 0, 0));
+            assert_eq!(contract.get_my_holdings(), (0, 0, 0));
+            assert_eq!(contract.get_pool_details(), (0, 0, 0, 0));
         }
 
         #[ink::test]
         fn faucet_works() {
             let mut contract = Amm::new(0);
             contract.faucet(10, 20);
-            assert_eq!(contract.getMyHoldings(), (10, 20, 0));
-            assert_eq!(contract.getPoolDetails(), (0, 0, 0, 0));
+            assert_eq!(contract.get_my_holdings(), (10, 20, 0));
+            assert_eq!(contract.get_pool_details(), (0, 0, 0, 0));
         }
 
         #[ink::test]
-        fn activePool_test() {
+        fn active_pool_test() {
             let contract = Amm::new(0);
-            let res = contract.activePool();
+            let res = contract.active_pool();
             assert_eq!(res, Err(Error::ZeroLiquidity));
         }
 
@@ -298,8 +341,8 @@ mod amm {
             contract.faucet(100, 200);
             let share = contract.provide(10, 20).unwrap();
             assert_eq!(share, 100_000_000);
-            assert_eq!(contract.getMyHoldings(), (90, 180, share));
-            assert_eq!(contract.getPoolDetails(), (10, 20, share, 0));
+            assert_eq!(contract.get_my_holdings(), (90, 180, share));
+            assert_eq!(contract.get_pool_details(), (10, 20, share, 0));
         }
 
         #[ink::test]
@@ -308,8 +351,8 @@ mod amm {
             contract.faucet(100, 200);
             let share = contract.provide(10, 20).unwrap();
             assert_eq!(contract.withdraw(share / 2).unwrap(), (5, 10));
-            assert_eq!(contract.getMyHoldings(), (95, 190, share/2));
-            assert_eq!(contract.getPoolDetails(), (5, 10, share/2, 0));
+            assert_eq!(contract.get_my_holdings(), (95, 190, share / 2));
+            assert_eq!(contract.get_pool_details(), (5, 10, share / 2, 0));
         }
 
         #[ink::test]
@@ -317,16 +360,34 @@ mod amm {
             let mut contract = Amm::new(500); // 50%
             contract.faucet(200, 200);
             let share = contract.provide(100, 200).unwrap();
-            assert_eq!(contract.getMyHoldings(), (100, 0, share));
-            assert_eq!(contract.getPoolDetails(), (100, 200, share, 500));
+            assert_eq!(contract.get_my_holdings(), (100, 0, share));
+            assert_eq!(contract.get_pool_details(), (100, 200, share, 500));
 
             let _res = contract.swap_token1_to_token2(50, 10);
             // 50 token1 provided ... w/ fee (50%) it is 25
             // rate in pool is 1 token1 / 2 token2 ... so 25 token1 * 2 -> 50 token2
             // with slippage it will be 40 token2 (pool state/rate 125 / 160)
-            assert_eq!(contract.getMyHoldings(), (50, 40, share));
+            assert_eq!(contract.get_my_holdings(), (50, 40, share));
             // token1 100 + 25 (given amount w/o fee), token2 200 - withdrawed 40
-            assert_eq!(contract.getPoolDetails(), (125, 160, share, 500));
+            assert_eq!(contract.get_pool_details(), (125, 160, share, 500));
+        }
+
+        #[ink::test]
+        fn swap_token2_to_token1_test() {
+            let mut contract = Amm::new(0);
+            contract.faucet(200, 200);
+            let share = contract.provide(100, 100).unwrap();
+            assert_eq!(contract.get_my_holdings(), (100, 100, share));
+            assert_eq!(contract.get_pool_details(), (100, 100, share, 0));
+
+            let _res = contract.swap_token2_to_token1(50, 20);
+            println!("res: {:?}", _res);
+            assert_eq!(contract.get_my_holdings(), (134, 50, share));
+            // token2 100 + 50 (given amount), token2 66 - withdrawed 34
+            // before K: 100 * 100 = 10_000
+            // after K: 66 * 150 = 9_900 ....  Balance is u128 so it doesn't have decimal
+            // precission. Correctly it should be 66.66666 * 150 = 10_000
+            assert_eq!(contract.get_pool_details(), (66, 150, share, 0));
         }
     }
 }
