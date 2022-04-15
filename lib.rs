@@ -3,6 +3,8 @@
 //
 // Run tests: cargo +nightly test -- --nocapture
 //
+// Deploying
+// cargo +nightly contract build --release
 // TODO
 // - fee earnings are not handled here ... do it via eg. earnings: Balances
 
@@ -276,9 +278,6 @@ mod amm {
 
             let total_token2_after = self.token2_total + token2_w_fee;
             let total_token1_after = self.get_k() / total_token2_after;
-            println!("k: {:?}", self.get_k());
-            println!("total token 2 after: {:?}", total_token2_after);
-            println!("total token 1 after: {:?}", total_token1_after);
 
             let token1_withdraw = self.token1_total - total_token1_after;
 
